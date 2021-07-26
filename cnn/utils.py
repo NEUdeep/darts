@@ -32,7 +32,7 @@ def accuracy(output, target, topk=(1,)):
 
   res = []
   for k in topk:
-    correct_k = correct[:k].view(-1).float().sum(0)
+    correct_k = correct[:k].contiguous().view(-1).float().sum(0)
     res.append(correct_k.mul_(100.0/batch_size))
   return res
 
@@ -99,14 +99,27 @@ def load(model, model_path):
   model.load_state_dict(torch.load(model_path))
 
 
+'''
+drop_path
+是dropout的拓展，将运算单元drop的方法应用到路径上，会随机的丢弃一些路径来实现正则化，但是至少保证有一条路径是连接输入和输出的，方法源自于分形网络：
+
+Larsson, Gustav, Michael Maire, and Gregory Shakhnarovich. “Fractalnet: Ultra-deep neural networks without residuals.” arXiv preprint arXiv:1605.07648 (2016).
+'''
 def drop_path(x, drop_prob):
+  # 假设x已经是cuda向量
   if drop_prob > 0.:
     keep_prob = 1.-drop_prob
+    # bernoulli以keep_prob的概率生成1
+    # 例如当keep_prob=0.3时，生成的10个数中可能有3个为1
     mask = Variable(torch.cuda.FloatTensor(x.size(0), 1, 1, 1).bernoulli_(keep_prob))
+    # 除以keep_prob是为了让输出预期相同
     x.div_(keep_prob)
     x.mul_(mask)
   return x
-
+'''
+关于输出预期相同 cs231n中对dropout做了详细解说，这里简单说明一下，在训练阶段，我们drop了一些神经元，但是在测试阶段，所有神经元都处于活动状态。假设我们以p pp的概率去保留一些神经元，在训练阶段，
+一个神经元被丢失后，该神经元预期的输出变为p ∗ x + ( 1 − p ) ∗ 0 p*x+(1-p)*0p∗x+(1−p)∗0，因为该神经元的输出有1 − p 1-p1−p的概率变为0，所以该神经元的输出预期化简为p ∗ x p*xp∗x。而测试阶段，所有神经元都处于活动状态，所以该神经元的输出预期就是x xx，为了让测试阶段和训练阶段输出预期一致，所以在训练阶段，输出必须除以p pp。
+'''
 
 def create_exp_dir(path, scripts_to_save=None):
   if not os.path.exists(path):

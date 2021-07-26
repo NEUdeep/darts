@@ -1,5 +1,6 @@
 from collections import namedtuple
 
+# 该函数中只有PRIMITIVES暂时有用，其他的设置可以先不用管。其他的变量是NASNet、AmoebaNet以及DARTS搜索出来的cell结构。
 Genotype = namedtuple('Genotype', 'normal normal_concat reduce reduce_concat')
 
 PRIMITIVES = [
